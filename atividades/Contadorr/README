@@ -54,5 +54,3 @@ Criar um sistema embarcado que:
 - O uso de interrupções garante resposta rápida e eficiente aos eventos dos botões.
 - Ideal para fins didáticos e projetos introdutórios de sistemas embarcados.
 - O projeto pode ser expandido para incluir buzzer, LEDs de status ou comunicação com outros módulos.
-
-
