@@ -1,8 +1,8 @@
-⏱️ Contador Decrescente com Interrupções (RP2040)
+#⏱️ Contador Decrescente com Interrupções (RP2040)
 
 Projeto em C para microcontrolador RP2040 que implementa um contador decrescente controlado por interrupções e exibido em um display OLED. O sistema utiliza dois botões físicos conectados aos GPIOs do microcontrolador para controlar a lógica.
 
-🎯 Objetivo
+#🎯 Objetivo
 
 Criar um sistema embarcado que:
 
@@ -14,9 +14,9 @@ Exiba tudo no display OLED.
 
 Ignore interações fora do período ativo.
 
-⚙️ Comportamento do Sistema
+#⚙️ Comportamento do Sistema
 
-🔘 Botão A (GPIO5)
+#🔘 Botão A (GPIO5)
 
 Ao ser pressionado:
 
@@ -28,7 +28,7 @@ Exibe os dois valores (contagem e cliques) no display.
 
 Inicia o modo de contagem regressiva ativa (decrementando de 1 em 1 por segundo).
 
-🔘 Botão B (GPIO6)
+#🔘 Botão B (GPIO6)
 
 Durante a contagem (de 9 até 0):
 
@@ -48,7 +48,7 @@ Contador: 0
 
 Cliques: N (número total registrado durante os 9 segundos)
 
-🔁 Reinício
+#🔁 Reinício
 
 Ao pressionar novamente o Botão A:
 
@@ -58,7 +58,7 @@ O número de cliques do Botão B é zerado.
 
 Todo o processo recomeça.
 
-🧰 Tecnologias e Componentes
+#🧰 Tecnologias e Componentes
 
 Linguagem C
 
@@ -70,7 +70,7 @@ Botões físicos em GPIO5 (Botão A) e GPIO6 (Botão B)
 
 Uso de interrupções GPIO
 
-📝 Observações
+#📝 Observações
 
 O uso de interrupções garante resposta rápida e eficiente aos eventos dos botões.
 
