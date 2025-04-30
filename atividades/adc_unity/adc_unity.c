@@ -64,7 +64,7 @@ int main(void)
             proxima_impressao = delayed_by_ms(proxima_impressao, PRINT_PERIOD_MS);
         }
 
-        /* Pequeno repouso p/ não gastar CPU à toa */
+        /* Pequeno repouso p/ não gastar CPU a toa */
         sleep_ms(10);
     }
 }
