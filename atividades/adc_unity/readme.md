@@ -40,12 +40,12 @@ Este projeto demonstra como utilizar o **sensor de temperatura interno** do chip
 
 ## 🔧 Como Compilar
 
-1. Clone o repositório:
+1. Baixe apenas esta pasta do projeto (sem o repositório todo):
 
-```bash
-git clone https://github.com/seu-usuario/seu-repositorio.git
-cd seu-repositorio
-```
+👉 Acesse: https://minhaskamal.github.io/DownGit/
+Cole este link no campo: https://github.com/wagnerjunior77/wagner_jr_embarcatech_HBr_2025/tree/main/atividades/adc_unity
+
+Clique em “Download” para baixar um .zip contendo somente esta atividade.
 
 2. Configure o CMake e compile:
 
