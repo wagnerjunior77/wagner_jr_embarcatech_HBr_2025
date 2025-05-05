@@ -1,0 +1,199 @@
+/*
+ * Galton Board OLED Simulator – BitDogLab / RP2040
+ * ------------------------------------------------
+ * I²C1  : GP14 = SDA, GP15 = SCL
+ * BTN A : GP5  -> restart
+ * BTN B : GP6  -> pause
+ */
+
+ #include <stdio.h>
+ #include <stdlib.h>
+ #include "pico/stdlib.h"
+ #include "pico/time.h"
+ #include "hardware/i2c.h"
+ #include "hardware/gpio.h"
+ #include "hardware/irq.h"
+ 
+ #include "src/ssd1306.h"
+ #include "src/ssd1306_i2c.h"
+ #include "src/ssd1306_font.h"
+ 
+ /* ---- Pinos de botões ---- */
+ #define BUTTON_A   5
+ #define BUTTON_B   6
+ 
+ /* ---- Dimensões / parâmetros do tabuleiro ---- */
+ #define OLED_W          128
+ #define OLED_H           64
+ #define NUM_BINS         16
+ #define BIN_W           (OLED_W / NUM_BINS)
+ #define PIN_SPACING_Y     4
+ #define DX                4
+ #define MAX_BALLS         8
+ #define TICK_MS          80
+ #define SPAWN_INTERVAL   10
+ #define HIST_SCALE       50        /* altura “cheia” ≈ 50 bolas */
+ #define BIAS             0.5f
+ 
+ /* ---- Estruturas ---- */
+ typedef struct {
+     int  x, y;
+     bool alive;
+ } Ball;
+ 
+ /* ---- Globais ---- */
+ static ssd1306_t disp;
+ static Ball      balls[MAX_BALLS];
+ static uint16_t  hist[NUM_BINS];
+ static uint32_t  total_balls = 0;
+ 
+ /* Flags controladas por interrupção */
+ static volatile bool restart_requested   = false;
+ static volatile bool simulation_paused   = false;
+ 
+ /* ---- Utilidades ---- */
+ static inline bool rand_dir(float bias) {
+     return ((float)rand() / (float)RAND_MAX) < bias;
+ }
+ 
+ static inline void ball_spawn(Ball *b) {
+     b->x = OLED_W / 2;
+     b->y = 0;
+     b->alive = true;
+ }
+ 
+ static void clear_simulation(void) {
+     for (int i = 0; i < NUM_BINS;  i++) hist[i] = 0;
+     for (int i = 0; i < MAX_BALLS; i++) balls[i].alive = false;
+     total_balls = 0;
+ }
+ 
+ /* Desenha barra vertical sólida */
+ static void draw_bar(int bin, int height) {
+     if (height <= 0) return;
+     int x0 = bin * BIN_W;
+     for (int dx = 0; dx < BIN_W - 1; dx++)
+         for (int dy = 0; dy < height; dy++)
+             ssd1306_draw_pixel(&disp, x0 + dx, OLED_H - 1 - dy);
+ }
+ 
+ /* ---- OLED / I2C setup ---- */
+ static void oled_setup(void) {
+     i2c_init(i2c1, 400 * 1000);
+     gpio_set_function(14, GPIO_FUNC_I2C);
+     gpio_set_function(15, GPIO_FUNC_I2C);
+     gpio_pull_up(14); gpio_pull_up(15);
+ 
+     disp.external_vcc = false;
+     if (!ssd1306_init(&disp, OLED_W, OLED_H, 0x3C, i2c1)) {
+         printf("OLED init falhou\n");
+         while (1) tight_loop_contents();
+     }
+     ssd1306_clear(&disp);
+     ssd1306_show(&disp);
+ }
+ 
+ /* ---- Interrupt handler dos botões ---- */
+ static void button_irq_callback(uint gpio, uint32_t events) {
+     static absolute_time_t last_a = {0}, last_b = {0};
+     absolute_time_t now = get_absolute_time();
+ 
+     if (gpio == BUTTON_A &&
+         absolute_time_diff_us(last_a, now) > 200000) {
+         last_a = now;
+         restart_requested = true;
+     }
+     else if (gpio == BUTTON_B &&
+              absolute_time_diff_us(last_b, now) > 200000) {
+         last_b = now;
+         simulation_paused = true;   /* pausa até pressionar A */
+     }
+ }
+ 
+ /* ---- main ---- */
+ int main(void) {
+     stdio_init_all();
+     sleep_ms(500);
+ 
+     srand((unsigned)time_us_64());
+     oled_setup();
+     clear_simulation();
+ 
+     /* Configura botões */
+     gpio_init(BUTTON_A); gpio_set_dir(BUTTON_A, GPIO_IN); gpio_pull_up(BUTTON_A);
+     gpio_init(BUTTON_B); gpio_set_dir(BUTTON_B, GPIO_IN); gpio_pull_up(BUTTON_B);
+ 
+     gpio_set_irq_enabled_with_callback(BUTTON_A, GPIO_IRQ_EDGE_FALL, true, &button_irq_callback);
+     gpio_set_irq_enabled(BUTTON_B, GPIO_IRQ_EDGE_FALL, true);
+ 
+     uint32_t tick = 0;
+ 
+     while (1) {
+ 
+         /* ---- Trata flags de controle ---- */
+         if (restart_requested) {
+             simulation_paused = false;   /* volta a rodar */
+             restart_requested  = false;
+             clear_simulation();
+         }
+ 
+         if (!simulation_paused) {
+             /* 1. Spawn */
+             if (tick % SPAWN_INTERVAL == 0) {
+                 for (int i = 0; i < MAX_BALLS; i++)
+                     if (!balls[i].alive) { ball_spawn(&balls[i]); break; }
+             }
+ 
+             /* 2. Update */
+             for (int i = 0; i < MAX_BALLS; i++) {
+                 Ball *b = &balls[i];
+                 if (!b->alive) continue;
+ 
+                 if (b->y % PIN_SPACING_Y == 0) {
+                     b->x += rand_dir(BIAS) ? DX : -DX;
+                     if (b->x < 0) b->x = 0;
+                     if (b->x > OLED_W - 1) b->x = OLED_W - 1;
+                 }
+                 b->y++;
+ 
+                 if (b->y >= OLED_H - 1) {
+                     int bin = b->x / BIN_W;
+                     hist[bin]++; total_balls++;
+                     ball_spawn(b);
+                 }
+             }
+         }
+ 
+         /* ---- Desenho ---- */
+         ssd1306_clear(&disp);
+ 
+         /* bolas */
+         if (!simulation_paused) {
+             for (int i = 0; i < MAX_BALLS; i++)
+                 if (balls[i].alive)
+                     ssd1306_draw_pixel(&disp, balls[i].x, balls[i].y);
+         }
+ 
+         /* histograma */
+         for (int b = 0; b < NUM_BINS; b++) {
+             int h = (hist[b] * (OLED_H - 10)) / HIST_SCALE;
+             if (h > OLED_H - 10) h = OLED_H - 10;
+             draw_bar(b, h);
+         }
+ 
+         /* contador ou status */
+         if (simulation_paused) {
+             ssd1306_draw_string(&disp, 0, 0, 1, "PAUSADO");
+         } else {
+             char buf[16];
+             snprintf(buf, sizeof buf, "%lu", total_balls);
+             ssd1306_draw_string(&disp, 0, 0, 1, buf);
+         }
+ 
+         ssd1306_show(&disp);
+ 
+         sleep_ms(TICK_MS);
+         tick++;
+     }
+ }
+ 
